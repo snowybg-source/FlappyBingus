@@ -13,85 +13,95 @@ export class Input {
   }
 
   setOnAction(fn) { this.onAction = fn || (() => {}); }
+
   snapshot() {
-    // keep it minimal; replay only needs movement + cursor
     return {
       move: this.getMove(),
       cursor: { x: this.cursor.x, y: this.cursor.y, has: this.cursor.has }
     };
   }
 
+  reset() {
+    this.keys = Object.create(null);
+  }
+
+  // Treat any UI interaction as “hands off” for the game input layer.
+  _isUiTarget(t) {
+    if (!t) return false;
+    if (t.isContentEditable) return true;
+
+    const tag = (t.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select") return true;
+    if (tag === "button" || tag === "a" || tag === "label") return true;
+
+    // Anything inside the menu/over panels should be considered UI.
+    if (t.closest && t.closest(".panel")) return true;
+
+    return false;
+  }
+
   install() {
-    // Cursor
-const updateCursor = (e) => {
-  const r = this.canvas.getBoundingClientRect();
+    // --- Cursor mapping: DOM client coords -> canvas internal pixel coords ---
+    const updateCursor = (e) => {
+      const r = this.canvas.getBoundingClientRect();
+      const cw = this.canvas.width || 1;
+      const ch = this.canvas.height || 1;
 
-  // Convert DOM coords -> canvas internal coords (handles devicePixelRatio / CSS scaling)
-  const sx = this.canvas.width / r.width;
-  const sy = this.canvas.height / r.height;
+      const sx = cw / Math.max(1, r.width);
+      const sy = ch / Math.max(1, r.height);
 
-  // IMPORTANT: write to the same object teleport uses
-  const c = (this.input && this.input.cursor) ? this.input.cursor : this.cursor;
+      this.cursor.x = (e.clientX - r.left) * sx;
+      this.cursor.y = (e.clientY - r.top) * sy;
+      this.cursor.has = true;
+    };
 
-  c.x = (e.clientX - r.left) * sx;
-  c.y = (e.clientY - r.top) * sy;
-  c.has = true;
-};
+    // Track cursor for teleport, etc. Do not block UI.
+    window.addEventListener("pointermove", (e) => {
+      updateCursor(e);
+    }, { passive: true });
 
-    function updateCursorFromEvent(e, canvas, cursor) {
-  const rect = canvas.getBoundingClientRect();
-
-  // Convert DOM pixels -> canvas internal pixels
-  const sx = canvas.width / rect.width;
-  const sy = canvas.height / rect.height;
-  const c = this.cursor;
-
-  
-  cursor.x = (e.clientX - rect.left) * sx;
-  cursor.y = (e.clientY - rect.top) * sy;
-  cursor.has = true;
-}
-
-    window.addEventListener("pointermove", updateCursor, { passive: true });
+    // Mouse buttons (Teleport default etc.)
     window.addEventListener("pointerdown", (e) => {
+      // If user is interacting with UI, do not hijack the click.
+      if (this._isUiTarget(e.target)) return;
+
       updateCursor(e);
 
-      // Find if this mouse button is bound to an action
       const binds = this.getBinds();
       const tok = `m:${e.button}`;
+
       for (const a of ACTIONS) {
         if (bindToken(binds[a.id]) === tok) {
+          // This is gameplay input; prevent browser side-effects (back button, focus change, etc.)
           e.preventDefault();
           this.onAction(a.id, { type: "mouse", button: e.button, event: e });
           break;
         }
       }
+
+      // Keep keyboard focus on the window during gameplay clicks
       window.focus();
     }, { passive: false });
 
-    // Prevent context menu on the playfield
+    // Prevent context menu only when right-clicking the canvas (game field)
     this.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
     // Keyboard
-    const isTypingField = () => {
-      const el = document.activeElement;
-      if (!el) return false;
-      const tag = el.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
-      if (el.isContentEditable) return true;
-      return false;
-    };
+    const isTypingField = () => this._isUiTarget(document.activeElement);
 
     window.addEventListener("keydown", (e) => {
-      if (isTypingField()) return;
+      // If user is typing in an input/select/etc, do not hijack keystrokes.
+      if (isTypingField() || this._isUiTarget(e.target)) return;
 
       this.keys[e.code] = true;
 
       const binds = this.getBinds();
+
       // prevent scroll for movement + any bound key
       const maybePrevent = () => {
         // WASD always
         if (e.code === "KeyW" || e.code === "KeyA" || e.code === "KeyS" || e.code === "KeyD") return true;
+
         // keys bound to actions
         for (const a of ACTIONS) {
           const b = binds[a.id];
@@ -99,6 +109,7 @@ const updateCursor = (e) => {
         }
         return false;
       };
+
       if (maybePrevent()) e.preventDefault();
 
       if (!e.repeat) {
@@ -113,12 +124,10 @@ const updateCursor = (e) => {
     }, { passive: false });
 
     window.addEventListener("keyup", (e) => {
+      // If focus is in UI, ignore keyup too (prevents odd stuck-state if user alt-tabs into input)
+      if (isTypingField() || this._isUiTarget(e.target)) return;
       this.keys[e.code] = false;
-    });
-  }
-
-  reset() {
-    this.keys = Object.create(null);
+    }, { passive: true });
   }
 
   getMove() {
