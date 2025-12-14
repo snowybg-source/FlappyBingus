@@ -1,6 +1,7 @@
-<!-- =========================
-     FILE: flappy-bingus.html
-     ========================= -->
+<!-- =========================================
+     FILE: public/flappybingus.html
+     (Updated: user registration + server highscores + unlockable trails)
+     ========================================= -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -11,27 +12,31 @@
     :root{
       --bg0:#070b12;
       --bg1:#0b1220;
-      --panel:rgba(10,14,20,.82);
+      --panel:rgba(10,14,20,.84);
       --panel2:rgba(10,14,20,.62);
       --text:rgba(255,255,255,.92);
       --muted:rgba(255,255,255,.68);
       --accent:rgba(120,210,255,.95);
       --danger:rgba(255,90,90,.95);
+      --ok:rgba(120,255,160,.95);
     }
     html,body{height:100%;margin:0;overflow:hidden;background:linear-gradient(180deg,var(--bg0),var(--bg1));font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--text)}
     #wrap{position:fixed;inset:0}
     canvas{position:absolute;inset:0;width:100%;height:100%;display:block;background:#070b12}
     .screen{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none}
-    .panel{pointer-events:auto;width:min(780px,calc(100vw - 32px));padding:20px 20px 16px;border-radius:16px;
+    .panel{pointer-events:auto;width:min(920px,calc(100vw - 28px));padding:18px 18px 16px;border-radius:16px;
       background:linear-gradient(180deg,var(--panel),var(--panel2));
       border:1px solid rgba(255,255,255,.12);
       box-shadow:0 18px 60px rgba(0,0,0,.55);
       backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);}
-    .title{font-weight:900;letter-spacing:.6px;line-height:1.02;font-size:clamp(44px,6vw,74px);margin:6px 0 10px;text-shadow:0 10px 30px rgba(0,0,0,.45)}
-    .sub{color:var(--muted);font-size:14.5px;line-height:1.45;margin:0 0 14px}
+    .title{font-weight:950;letter-spacing:.6px;line-height:1.02;font-size:clamp(44px,6vw,74px);margin:6px 0 8px;text-shadow:0 10px 30px rgba(0,0,0,.45)}
+    .sub{color:var(--muted);font-size:14.5px;line-height:1.45;margin:0 0 12px}
+    .grid{display:grid;grid-template-columns:1.2fr .8fr;gap:14px;align-items:start}
+    @media (max-width: 860px){ .grid{grid-template-columns:1fr} }
+    .card{border-radius:14px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);padding:12px 12px 10px}
     .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-top:10px}
     button{appearance:none;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:var(--text);
-      padding:12px 16px;border-radius:12px;font-weight:900;font-size:16px;cursor:pointer;
+      padding:12px 16px;border-radius:12px;font-weight:950;font-size:16px;cursor:pointer;
       box-shadow:0 10px 24px rgba(0,0,0,.35);transition:transform .06s ease,background .12s ease}
     button:hover{background:rgba(255,255,255,.12);transform:translateY(-1px)}
     button:active{transform:translateY(0)}
@@ -41,12 +46,30 @@
     .pill{display:inline-flex;gap:8px;align-items:center;font-size:13px;color:var(--muted);
       border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);padding:7px 10px;border-radius:999px}
     .dot{width:8px;height:8px;border-radius:999px;background:rgba(255,200,120,.95);box-shadow:0 0 14px rgba(255,200,120,.35)}
-    .pill.ok .dot{background:rgba(120,255,160,.95);box-shadow:0 0 14px rgba(120,255,160,.35)}
-    .pill.bad .dot{background:rgba(255,90,90,.95);box-shadow:0 0 14px rgba(255,90,90,.35)}
-    .stats{margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.12);color:var(--muted);font-size:13.5px;line-height:1.55}
+    .pill.ok .dot{background:var(--ok);box-shadow:0 0 14px rgba(120,255,160,.35)}
+    .pill.bad .dot{background:var(--danger);box-shadow:0 0 14px rgba(255,90,90,.35)}
+    .pill.neutral .dot{background:rgba(170,170,170,.9);box-shadow:0 0 14px rgba(170,170,170,.25)}
+    .stats{margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.12);color:var(--muted);font-size:13.5px;line-height:1.55}
     .kbd{display:inline-block;padding:2px 7px;border-radius:8px;border:1px solid rgba(255,255,255,.18);
-      background:rgba(255,255,255,.06);color:rgba(255,255,255,.85);font-weight:800}
+      background:rgba(255,255,255,.06);color:rgba(255,255,255,.85);font-weight:900}
     .hidden{display:none!important}
+
+    .field{display:flex;flex-direction:column;gap:6px}
+    .lbl{font-size:12px;color:rgba(255,255,255,.72);font-weight:900;letter-spacing:.3px}
+    input[type="text"], select{
+      appearance:none;width:100%;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.18);
+      background:rgba(0,0,0,.25);color:rgba(255,255,255,.92);font-weight:800;outline:none;
+    }
+    input[type="text"]::placeholder{color:rgba(255,255,255,.45)}
+    .minirow{display:flex;gap:8px;align-items:center}
+    .hint{font-size:12.5px;color:rgba(255,255,255,.60);line-height:1.35}
+    .hint.good{color:rgba(120,255,160,.80)}
+    .hint.bad{color:rgba(255,90,90,.80)}
+
+    .hsTable{width:100%;border-collapse:collapse;font-size:13.5px}
+    .hsTable th,.hsTable td{padding:8px 8px;border-bottom:1px solid rgba(255,255,255,.10);text-align:left}
+    .hsTable th{color:rgba(255,255,255,.78);font-weight:950}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
   </style>
 </head>
 <body>
@@ -57,21 +80,55 @@
     <div class="panel">
       <div class="title">Flappy Bingus</div>
       <p class="sub">
-        Major update: <b>permanent skills</b> (1–4), <b>score catalysts</b> (orbs + combo), and <b>Perfect Thread</b> bonuses.
+        Register a username to track progression, unlock trails, and appear on the global leaderboard.
       </p>
-      <div class="row">
-        <button id="start" class="primary" disabled>Start</button>
-        <div id="bootPill" class="pill"><span class="dot"></span><span id="bootText">Loading…</span></div>
-      </div>
-      <div class="stats">
-        Move: <span class="kbd">W</span> <span class="kbd">A</span> <span class="kbd">S</span> <span class="kbd">D</span>.
-        Skills: <span class="kbd">1</span>–<span class="kbd">4</span>.
-        <br/>
-        Orbs give points + combo. If any orb despawns, combo breaks.
-        <br/>
-        Perfect Thread: pass the exact center of a gap when it crosses you.
-        <br/>
-        High score cookie: <span class="kbd">chocolate_chip</span> • High: <span class="kbd" id="menuHS">0</span>
+
+      <div class="grid">
+        <div class="card">
+          <div class="row" style="margin-top:0">
+            <button id="start" class="primary" disabled>Start</button>
+            <div id="bootPill" class="pill"><span class="dot"></span><span id="bootText">Loading…</span></div>
+          </div>
+
+          <div style="height:10px"></div>
+
+          <div class="field">
+            <div class="lbl">Username</div>
+            <div class="minirow">
+              <input id="usernameInput" type="text" maxlength="18" placeholder="3–18 chars: letters, numbers, space, _ or -"/>
+              <button id="saveUserBtn">Save</button>
+            </div>
+            <div id="userHint" class="hint">Not signed in.</div>
+          </div>
+
+          <div style="height:10px"></div>
+
+          <div class="field">
+            <div class="lbl">Cosmetic Trail</div>
+            <select id="trailSelect"></select>
+            <div id="trailHint" class="hint">Unlock trails by improving your personal best.</div>
+          </div>
+
+          <div class="stats">
+            Move: <span class="kbd">W</span> <span class="kbd">A</span> <span class="kbd">S</span> <span class="kbd">D</span>.
+            Skills: <span class="kbd">1</span>–<span class="kbd">4</span>.
+            <br/>
+            Orbs give points + combo. If any orb despawns, combo breaks.
+            <br/>
+            Perfect Thread: pass the exact center of a gap when it crosses you.
+            <br/>
+            Personal best: <span class="kbd" id="pbText">0</span> • Selected trail: <span class="kbd" id="trailText">classic</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="row" style="margin-top:0">
+            <div style="font-weight:950;letter-spacing:.3px">High Scores</div>
+            <a href="/highscores" style="color:rgba(120,210,255,.95);text-decoration:none;font-weight:900;font-size:13px">Full list</a>
+          </div>
+          <div style="height:8px"></div>
+          <div id="hsWrap" class="hint">Loading leaderboard…</div>
+        </div>
       </div>
     </div>
   </div>
@@ -82,7 +139,7 @@
       <p class="sub">One collision = instant death. Gameplay is frozen.</p>
       <div class="stats">
         Final score: <span class="kbd" id="final">0</span><br/>
-        High score: <span class="kbd" id="overHS">0</span>
+        Personal best: <span class="kbd" id="overPB">0</span>
       </div>
       <div class="row" style="margin-top:14px">
         <button id="restart" class="primary">Restart</button>
@@ -96,8 +153,8 @@
 <script>
 "use strict";
 
-/* ---------------- Cookie high score ---------------- */
-const HS_COOKIE = "chocolate_chip";
+/* ---------------- Optional local fallback best (cookie) ---------------- */
+const LOCAL_BEST_COOKIE = "chocolate_chip";
 function getCookie(name){
   const needle = name + "=";
   const parts = document.cookie ? document.cookie.split(";") : [];
@@ -112,12 +169,12 @@ function setCookie(name, value, days){
   const maxAge = Math.max(0, Math.floor(days*86400));
   document.cookie = `${name}=${safe}; Max-Age=${maxAge}; Path=/; SameSite=Lax`;
 }
-function readHighScore(){
-  const raw = getCookie(HS_COOKIE);
+function readLocalBest(){
+  const raw = getCookie(LOCAL_BEST_COOKIE);
   const n = Number.parseInt(raw,10);
   return (Number.isFinite(n) && n>=0) ? Math.min(n, 1e9) : 0;
 }
-function writeHighScore(v){ setCookie(HS_COOKIE, Math.max(0, Math.min(1e9, v|0)), 3650); }
+function writeLocalBest(v){ setCookie(LOCAL_BEST_COOKIE, Math.max(0, Math.min(1e9, v|0)), 3650); }
 
 /* ---------------- Config defaults + optional JSON ---------------- */
 const DEFAULT_CONFIG = {
@@ -179,21 +236,62 @@ const over = document.getElementById("over");
 const startBtn = document.getElementById("start");
 const restartBtn = document.getElementById("restart");
 const toMenuBtn = document.getElementById("toMenu");
-const menuHS = document.getElementById("menuHS");
 const finalEl = document.getElementById("final");
-const overHS = document.getElementById("overHS");
+const overPB = document.getElementById("overPB");
+const pbText = document.getElementById("pbText");
+const trailText = document.getElementById("trailText");
 
 const bootPill = document.getElementById("bootPill");
 const bootText = document.getElementById("bootText");
 
+const usernameInput = document.getElementById("usernameInput");
+const saveUserBtn = document.getElementById("saveUserBtn");
+const userHint = document.getElementById("userHint");
+const trailSelect = document.getElementById("trailSelect");
+const trailHint = document.getElementById("trailHint");
+const hsWrap = document.getElementById("hsWrap");
+
 const boot = { imgReady:false, imgOk:false, cfgReady:false, cfgOk:false, cfgSrc:"defaults" };
+
+/* ---------------- Server session + cosmetics ---------------- */
+const net = {
+  online: true,
+  user: null, // {username,bestScore,selectedTrail,unlockedTrails,...}
+  trails: [
+    { id:"classic", name:"Classic", minScore:0 },
+    { id:"rainbow", name:"Rainbow", minScore:100 },
+    { id:"gothic", name:"Gothic", minScore:150 }
+  ],
+  highscores: []
+};
+
+function canStart(){
+  // Require assets/config loaded; require user when online (so scores map to a user).
+  const bootReady = boot.imgReady && boot.cfgReady;
+  if (!bootReady) return false;
+  if (!net.online) return true;            // allow offline play
+  return !!net.user;                        // online: must be registered
+}
+
 function setBootUI(){
+  startBtn.disabled = !canStart();
+  bootPill.classList.remove("ok","bad","neutral");
+
   const ready = boot.imgReady && boot.cfgReady;
-  startBtn.disabled = !ready;
-  bootPill.classList.remove("ok","bad");
-  if (ready) bootPill.classList.add((boot.imgOk && boot.cfgOk) ? "ok" : "bad");
-  if (!ready) bootText.textContent = "Loading…";
-  else bootText.textContent = `${boot.imgOk ? "player ok":"player fallback"} • ${boot.cfgOk ? boot.cfgSrc:"defaults"}`;
+  if (!ready){
+    bootPill.classList.add("neutral");
+    bootText.textContent = "Loading…";
+    return;
+  }
+
+  // ready
+  const ok = boot.imgOk && (boot.cfgOk || !boot.cfgOk);
+  bootPill.classList.add(ok ? "ok" : "bad");
+
+  const a = boot.imgOk ? "player ok" : "player fallback";
+  const b = boot.cfgOk ? boot.cfgSrc : "defaults";
+  const c = net.online ? (net.user ? `user: ${net.user.username}` : "no user") : "offline";
+  bootText.textContent = `${a} • ${b} • ${c}`;
 }
 
 /* ---------------- Assets ---------------- */
@@ -224,6 +322,163 @@ async function tryFetchJson(url){
   boot.cfgReady = true;
   setBootUI();
 })();
+
+/* ---------------- Networking ---------------- */
+async function api(path, opts={}){
+  try{
+    const res = await fetch(path, {
+      credentials: "same-origin",
+      ...opts,
+      headers: {
+        "Content-Type": "application/json",
+        ...(opts.headers||{})
+      }
+    });
+    const data = await res.json().catch(()=>null);
+    if (!res.ok || !data) throw new Error("api_fail");
+    net.online = true;
+    return data;
+  } catch(_){
+    net.online = false;
+    return null;
+  } finally {
+    setBootUI();
+  }
+}
+
+function setUserHint(){
+  if (!net.online){
+    userHint.className = "hint bad";
+    userHint.textContent = "Server offline/unreachable. Offline play enabled (no global highscores).";
+    return;
+  }
+  if (!net.user){
+    userHint.className = "hint";
+    userHint.textContent = "Enter a username to save progression and appear on the leaderboard.";
+  } else {
+    userHint.className = "hint good";
+    userHint.textContent = `Signed in as ${net.user.username}. Runs: ${net.user.runs} • Total: ${net.user.totalScore}`;
+  }
+}
+
+function fillTrailSelect(){
+  const trails = net.trails || [];
+  const unlocked = (net.user && net.user.unlockedTrails) ? new Set(net.user.unlockedTrails) : new Set(["classic"]);
+  const selected = (net.user && net.user.selectedTrail) ? net.user.selectedTrail : "classic";
+
+  // rebuild options
+  trailSelect.innerHTML = "";
+  for (const t of trails){
+    const opt = document.createElement("option");
+    opt.value = t.id;
+    const locked = !unlocked.has(t.id);
+    opt.textContent = locked ? `${t.name} (locked: ${t.minScore})` : t.name;
+    opt.disabled = locked;
+    trailSelect.appendChild(opt);
+  }
+
+  // set selection to first unlocked if current isn't allowed
+  let sel = selected;
+  if (!unlocked.has(sel)) sel = "classic";
+  trailSelect.value = sel;
+
+  trailText.textContent = sel;
+  if (!net.user){
+    trailHint.className = "hint";
+    trailHint.textContent = "Register to unlock and persist cosmetics.";
+  } else {
+    trailHint.className = "hint";
+    trailHint.textContent = `Unlock: Rainbow @ 100 • Gothic @ 150. Your best: ${net.user.bestScore}`;
+  }
+}
+
+function renderHighscores(){
+  if (!net.online){
+    hsWrap.className = "hint bad";
+    hsWrap.textContent = "Leaderboard unavailable (offline).";
+    return;
+  }
+  const hs = net.highscores || [];
+  if (!hs.length){
+    hsWrap.className = "hint";
+    hsWrap.textContent = "No scores yet. Be the first.";
+    return;
+  }
+
+  hsWrap.className = "";
+  const table = document.createElement("table");
+  table.className = "hsTable";
+  const thead = document.createElement("thead");
+  thead.innerHTML = `<tr><th>#</th><th>User</th><th class="mono">Best</th></tr>`;
+  table.appendChild(thead);
+  const tbody = document.createElement("tbody");
+
+  const top = hs.slice(0, 10);
+  top.forEach((e,i)=>{
+    const tr = document.createElement("tr");
+    const isMe = net.user && e.username === net.user.username;
+    tr.innerHTML = `<td class="mono">${i+1}</td><td>${escapeHtml(e.username)}${isMe?" (you)":""}</td><td class="mono">${e.bestScore|0}</td>`;
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+
+  hsWrap.innerHTML = "";
+  hsWrap.appendChild(table);
+}
+
+function escapeHtml(s){
+  return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;");
+}
+
+async function refreshProfileAndHighscores(){
+  const me = await api("/api/me", { method:"GET" });
+  if (me && me.ok){
+    net.user = me.user || null;
+    net.trails = me.trails || net.trails;
+  } else {
+    net.user = null;
+  }
+  setUserHint();
+  fillTrailSelect();
+  pbText.textContent = String((net.user ? net.user.bestScore : readLocalBest())|0);
+  trailText.textContent = String((net.user ? net.user.selectedTrail : "classic"));
+
+  const hs = await api("/api/highscores?limit=20", { method:"GET" });
+  if (hs && hs.ok) net.highscores = hs.highscores || [];
+  renderHighscores();
+
+  setBootUI();
+}
+
+saveUserBtn.addEventListener("click", async ()=>{
+  const username = usernameInput.value.trim();
+  const res = await api("/api/register", { method:"POST", body: JSON.stringify({ username }) });
+  if (res && res.ok){
+    net.user = res.user;
+    net.trails = res.trails || net.trails;
+    usernameInput.value = net.user.username;
+    await refreshProfileAndHighscores();
+  } else {
+    setUserHint();
+  }
+});
+
+trailSelect.addEventListener("change", async ()=>{
+  const id = trailSelect.value;
+  trailText.textContent = id;
+  if (!net.online || !net.user){
+    // offline / not logged in: just local selection for session
+    return;
+  }
+  const res = await api("/api/cosmetics/trail", { method:"POST", body: JSON.stringify({ trailId: id }) });
+  if (res && res.ok){
+    net.user = res.user;
+    net.trails = res.trails || net.trails;
+    fillTrailSelect();
+  } else {
+    fillTrailSelect();
+  }
+});
 
 /* ---------------- Input ---------------- */
 const keys = Object.create(null);
@@ -283,6 +538,12 @@ function hexToRgb(h){
 function lerpC(a,b,t){ return {r:lerp(a.r,b.r,t), g:lerp(a.g,b.g,t), b:lerp(a.b,b.b,t)}; }
 function rgb(c,a=1){ return `rgba(${c.r|0},${c.g|0},${c.b|0},${a})`; }
 function shade(c,f){ return {r:clamp(c.r*f,0,255), g:clamp(c.g*f,0,255), b:clamp(c.b*f,0,255)}; }
+
+/* HSL helper for rainbow trail */
+function hsla(h,s,l,a){
+  h = ((h%360)+360)%360;
+  return `hsla(${h},${clamp(s,0,100)}%,${clamp(l,0,100)}%,${clamp(a,0,1)})`;
+}
 
 /* ---------------- State ---------------- */
 const STATE = Object.freeze({ MENU:0, PLAY:1, OVER:2 });
@@ -379,7 +640,7 @@ function updatePlayer(dt){
   player.y = clamp(player.y, pad, H-pad);
 }
 
-/* -------- Pipes -------- */
+/* -------- Pipes / Gates / Orbs / FX -------- */
 class Pipe{
   constructor(x,y,w,h,vx,vy){
     this.x=x; this.y=y; this.w=w; this.h=h;
@@ -398,8 +659,6 @@ class Pipe{
   }
   off(m){ return (this.x>W+m)||(this.x+this.w<-m)||(this.y>H+m)||(this.y+this.h<-m); }
 }
-
-/* -------- Gap gates for PERFECT -------- */
 class Gate{
   constructor(axis, pos, v, gapCenter, gapHalf, thick){
     this.axis=axis; this.pos=pos; this.prev=pos; this.v=v;
@@ -425,8 +684,6 @@ class Gate{
   }
   off(m){ return this.axis==="x" ? (this.pos<-m||this.pos>W+m) : (this.pos<-m||this.pos>H+m); }
 }
-
-/* -------- Orbs -------- */
 class Orb{
   constructor(x,y,vx,vy,r,life){
     this.x=x; this.y=y; this.vx=vx; this.vy=vy;
@@ -446,8 +703,6 @@ class Orb{
   }
   dead(){ return this.life<=0; }
 }
-
-/* -------- FX (particles + floating text) -------- */
 class Part{
   constructor(x,y,vx,vy,life,size,color,add){
     this.x=x; this.y=y; this.vx=vx; this.vy=vy;
@@ -499,13 +754,18 @@ class FloatText{
 
 /* ---------------- Gameplay vars ---------------- */
 let pipes=[], gates=[], orbs=[], parts=[], floats=[];
-let score=0, highScore=readHighScore();
+let score=0, best=readLocalBest();
 let timeAlive=0;
 let pipeT=0, specialT=1.6, orbT=1.0;
 let combo=0, comboBreakFlash=0, comboSparkAcc=0;
 let perfectT=0, perfectMax=0;
 let slowField=null; // {x,y,r,fac,t,tm}
 let cds={ dash:0, phase:0, teleport:0, slowField:0 };
+
+// Trail state
+let trailId = "classic";
+let trailAcc = 0;
+let trailHue = 0;
 
 const margin = ()=> clamp(Math.min(W,H)*0.25, 110, 240);
 
@@ -569,7 +829,6 @@ function spawnSinglePipe(opts){
   }
   pipes.push(new Pipe(x,y,pw,ph,vx,vy));
 }
-
 function spawnWall(opts){
   const th=thickness();
   const spd=opts?.speed ?? (pipeSpeed()*0.95);
@@ -597,7 +856,6 @@ function spawnWall(opts){
     gates.push(new Gate("y", sy+th*0.5, vy, gc, gap*0.5, th));
   }
 }
-
 function spawnBurst(){
   const d=difficulty01();
   const side=(Math.random()*4)|0;
@@ -673,10 +931,8 @@ function useSkill(slot){
     player.dashVX = (nn.len>0)?nn.x:0;
     player.dashVY = (nn.len>0)?nn.y:-1;
     player.dashT = dur;
-
     cds.dash = Math.max(0, Number(d.cooldown)||0);
 
-    // dash sparkle
     for (let i=0;i<18;i++){
       const a=rand(0,Math.PI*2), sp=rand(40,260);
       const vx=Math.cos(a)*sp - player.dashVX*220;
@@ -700,25 +956,18 @@ function useSkill(slot){
     const ed=clamp(Number(t.effectDuration)||0.35, 0.1, 1.2);
     const burst=Math.floor(clamp(Number(t.burstParticles)||0, 0, 240));
 
-const pad=player.r+2;
-const ox=player.x, oy=player.y;
+    let dx,dy;
+    if (cursor.has){ dx=cursor.x-player.x; dy=cursor.y-player.y; }
+    else { dx=player.lastX; dy=player.lastY; }
+    const n=norm2(dx,dy);
+    const ux=(n.len>0)?n.x:player.lastX;
+    const uy=(n.len>0)?n.y:player.lastY;
 
-let nx = player.x, ny = player.y;
+    const pad=player.r+2;
+    const ox=player.x, oy=player.y;
+    const nx=clamp(player.x + ux*range, pad, W-pad);
+    const ny=clamp(player.y + uy*range, pad, H-pad);
 
-if (cursor.has) {
-  const dx = cursor.x - player.x;
-  const dy = cursor.y - player.y;
-  const d = norm2(dx, dy);
-  const dist = Math.min(d.len, range);
-  nx = clamp(player.x + d.x * dist, pad, W - pad);
-  ny = clamp(player.y + d.y * dist, pad, H - pad);
-} else {
-  const d = norm2(player.lastX, player.lastY);
-  nx = clamp(player.x + d.x * range, pad, W - pad);
-  ny = clamp(player.y + d.y * range, pad, H - pad);
-}
-
-    // burst at origin and destination
     for (let i=0;i<burst;i++){
       const a0=rand(0,Math.PI*2), sp0=rand(80,420);
       const p0=new Part(ox,oy,Math.cos(a0)*sp0,Math.sin(a0)*sp0,rand(.22,.50),rand(1.0,2.2),"rgba(210,170,255,.92)",true);
@@ -732,10 +981,8 @@ if (cursor.has) {
     player.vx*=0.25; player.vy*=0.25;
 
     cds.teleport = Math.max(0, Number(t.cooldown)||0);
-    perfectT = Math.max(perfectT, 0); // no-op; keeps flash logic separate
     floats.push(new FloatText("TELEPORT", player.x, player.y-player.r*1.7, "rgba(230,200,255,.95)"));
 
-    // store a short-lived visual ring via particles (cheap)
     for (let i=0;i<26;i++){
       const a=rand(0,Math.PI*2), sp=rand(40,160);
       const p=new Part(nx,ny,Math.cos(a)*sp,Math.sin(a)*sp,ed,rand(.9,1.7),"rgba(255,255,255,.45)",true);
@@ -751,6 +998,70 @@ if (cursor.has) {
     slowField = { x:player.x, y:player.y, r:rad, fac:fac, t:dur, tm:dur };
     cds.slowField = Math.max(0, Number(s.cooldown)||0);
     floats.push(new FloatText("SLOW FIELD", player.x, player.y-player.r*1.8, "rgba(120,210,255,.95)"));
+  }
+}
+
+/* ---------------- Trail cosmetics ---------------- */
+function currentTrailId(){
+  if (net.user && net.user.selectedTrail) return net.user.selectedTrail;
+  return trailId;
+}
+function trailStyle(id){
+  // rate = particles/sec
+  if (id==="rainbow"){
+    return { rate: 95, life:[0.18,0.34], size:[0.9,2.2], speed:[35,170], drag:10.5, add:true };
+  }
+  if (id==="gothic"){
+    return { rate: 78, life:[0.20,0.40], size:[0.9,2.4], speed:[30,150], drag:9.5, add:true };
+  }
+  return { rate: 55, life:[0.18,0.32], size:[0.8,2.0], speed:[25,120], drag:11.5, add:true };
+}
+function emitTrail(dt){
+  if (state!==STATE.PLAY) return;
+  const id = currentTrailId();
+  const st = trailStyle(id);
+  trailHue = (trailHue + dt*220) % 360;
+
+  trailAcc += dt*st.rate;
+  const n = trailAcc|0;
+  trailAcc -= n;
+
+  // direction opposite of velocity, fallback to last input
+  const v = norm2(player.vx, player.vy);
+  const backX = (v.len>12) ? -v.x : -player.lastX;
+  const backY = (v.len>12) ? -v.y : -player.lastY;
+  const bx = player.x + backX*player.r*0.95;
+  const by = player.y + backY*player.r*0.95;
+
+  for (let i=0;i<n;i++){
+    const jitter = rand(0, Math.PI*2);
+    const jx = Math.cos(jitter)*rand(0, player.r*0.35);
+    const jy = Math.sin(jitter)*rand(0, player.r*0.35);
+
+    const sp = rand(st.speed[0], st.speed[1]);
+    const a = rand(0, Math.PI*2);
+    // push particles mostly backwards, with swirl
+    const vx = backX*sp + Math.cos(a)*sp*0.55;
+    const vy = backY*sp + Math.sin(a)*sp*0.55;
+
+    const life = rand(st.life[0], st.life[1]);
+    const size = rand(st.size[0], st.size[1]);
+
+    let color = "rgba(255,255,255,.70)";
+    if (id==="rainbow"){
+      const h = (trailHue + i*11) % 360;
+      color = hsla(h, 100, 70, 0.85);
+    } else if (id==="gothic"){
+      // purple glow with occasional ink
+      const ink = Math.random() < 0.16;
+      color = ink ? "rgba(0,0,0,.55)" : "rgba(170,90,255,.72)";
+    } else {
+      color = "rgba(140,220,255,.62)";
+    }
+
+    const p = new Part(bx + jx, by + jy, vx, vy, life, size, color, st.add);
+    p.drag = st.drag;
+    parts.push(p);
   }
 }
 
@@ -779,10 +1090,11 @@ function toMenu(){
   slowField=null;
   cds={dash:0,phase:0,teleport:0,slowField:0};
   resetPlayer();
-  highScore = readHighScore();
-  menuHS.textContent = String(highScore|0);
   over.classList.add("hidden");
   menu.classList.remove("hidden");
+
+  // refresh server data when menu shows
+  refreshProfileAndHighscores();
 }
 function startGame(){
   state = STATE.PLAY;
@@ -796,17 +1108,44 @@ function startGame(){
   cds={dash:0,phase:0,teleport:0,slowField:0};
   computePlayerSize();
   resetPlayer();
+
+  // snapshot trail selection for offline play
+  trailId = trailSelect.value || "classic";
+
   menu.classList.add("hidden");
   over.classList.add("hidden");
   window.focus();
 }
+async function submitScoreToServer(finalScore){
+  if (!net.online || !net.user) return;
+  const res = await api("/api/score", { method:"POST", body: JSON.stringify({ score: finalScore|0 }) });
+  if (res && res.ok){
+    net.user = res.user;
+    net.trails = res.trails || net.trails;
+    net.highscores = res.highscores || net.highscores;
+    pbText.textContent = String(net.user.bestScore|0);
+    fillTrailSelect();
+    renderHighscores();
+  }
+}
 function gameOver(){
   state = STATE.OVER;
-  const prev = highScore|0;
-  if (score>prev){ highScore=score|0; writeHighScore(highScore); }
+
+  // local best always updates (offline support)
+  const localBest = readLocalBest();
+  if ((score|0) > (localBest|0)) writeLocalBest(score|0);
+
   finalEl.textContent = String(score|0);
-  overHS.textContent = String(readHighScore()|0);
+  const pb = net.user ? (net.user.bestScore|0) : readLocalBest();
+  overPB.textContent = String(pb|0);
+
   over.classList.remove("hidden");
+
+  // async submit; UI updates if it changes PB/unlocks
+  submitScoreToServer(score|0).then(()=>{
+    const pb2 = net.user ? (net.user.bestScore|0) : readLocalBest();
+    overPB.textContent = String(pb2|0);
+  });
 }
 
 /* ---------------- Buttons ---------------- */
@@ -814,7 +1153,7 @@ startBtn.addEventListener("click", startGame);
 restartBtn.addEventListener("click", startGame);
 toMenuBtn.addEventListener("click", toMenu);
 
-/* ---------------- Render helpers ---------------- */
+/* ---------------- Rendering helpers ---------------- */
 function roundRect(x,y,w,h,r){
   const rr=Math.min(r,w*0.5,h*0.5);
   ctx.beginPath();
@@ -889,7 +1228,7 @@ function drawPlayer(){
     ctx.beginPath(); ctx.arc(player.x,player.y,Math.max(2,player.r*.18),0,Math.PI*2); ctx.fill();
   }
 
-  // Phase i-frame indicator: ring (no blinking)
+  // Phase i-frame indicator: ring (no blink)
   if (player.invT>0){
     ctx.shadowBlur=0;
     ctx.globalAlpha=.85;
@@ -953,7 +1292,6 @@ function drawHUD(){
     ctx.restore();
   }
 
-  // skills + combo bar (bottom-left)
   drawSkillBar();
 }
 function drawSkillIcon(skill, r){
@@ -1088,7 +1426,6 @@ function drawSkillBar(){
 
 /* ---------------- Main update + render ---------------- */
 function update(dt){
-  // background drift
   for (const p of bgDots){ p.y += p.s*dt; if (p.y>H+10){ p.y=-10; p.x=Math.random()*W; } }
 
   if (state!==STATE.PLAY) return;
@@ -1105,8 +1442,8 @@ function update(dt){
   }
 
   updatePlayer(dt);
+  emitTrail(dt);
 
-  // combo bar sparkles (high combo)
   const sparkleAt = Number(CFG.ui.comboBar.sparkleAt)||9999;
   if (combo>=sparkleAt){
     const rate=Math.max(0, Number(CFG.ui.comboBar.sparkleRate)||0);
@@ -1123,7 +1460,6 @@ function update(dt){
     }
   } else comboSparkAcc=0;
 
-  // spawn pipes
   pipeT -= dt;
   while (pipeT<=0){
     pipeT += spawnInterval();
@@ -1139,7 +1475,6 @@ function update(dt){
     else spawnSinglePipe({side:(Math.random()*4)|0, aimAtPlayer:false, speed:pipeSpeed()});
   }
 
-  // special patterns
   specialT -= dt;
   if (specialT<=0){
     const r=Math.random();
@@ -1152,7 +1487,6 @@ function update(dt){
     specialT = lerp(sp.startCadence, sp.endCadence, d) + rand(sp.jitterMin, sp.jitterMax);
   }
 
-  // spawn orbs
   const o=CFG.catalysts.orbs;
   if (o.enabled){
     orbT -= dt;
@@ -1163,7 +1497,6 @@ function update(dt){
     }
   }
 
-  // update gates + PERFECT
   for (const g of gates) g.update(dt);
   if (CFG.scoring.perfect.enabled){
     const bonus=Math.max(0, Number(CFG.scoring.perfect.bonus)||0);
@@ -1191,7 +1524,6 @@ function update(dt){
     }
   }
 
-  // update pipes
   for (const p of pipes){
     let mul=1;
     if (slowField){
@@ -1201,7 +1533,6 @@ function update(dt){
     p.update(dt, mul);
   }
 
-  // update orbs + despawn breaks combo
   let expired=false;
   for (let i=orbs.length-1;i>=0;i--){
     orbs[i].update(dt);
@@ -1212,7 +1543,6 @@ function update(dt){
     breakCombo(ui.barX+ui.barW*0.5, ui.barY-10);
   }
 
-  // orb pickup
   for (let i=orbs.length-1;i>=0;i--){
     const ob=orbs[i];
     if (circleCircle(player.x,player.y,player.r, ob.x,ob.y, ob.r)){
@@ -1231,14 +1561,12 @@ function update(dt){
     }
   }
 
-  // collision (phase = invuln)
   if (player.invT<=0){
     for (const p of pipes){
       if (circleRect(player.x,player.y,player.r,p.x,p.y,p.w,p.h)){ gameOver(); return; }
     }
   }
 
-  // pipe removal + base score
   const m=margin();
   for (let i=pipes.length-1;i>=0;i--){
     const p=pipes[i];
@@ -1252,69 +1580,59 @@ function update(dt){
   }
   for (let i=gates.length-1;i>=0;i--) if (gates[i].off(m)) gates.splice(i,1);
 
-  // fx update/cleanup
   for (const p of parts) p.update(dt);
   for (const t of floats) t.update(dt);
   for (let i=parts.length-1;i>=0;i--) if (parts[i].life<=0) parts.splice(i,1);
   for (let i=floats.length-1;i>=0;i--) if (floats[i].life<=0) floats.splice(i,1);
 
-  // caps
   if (pipes.length>280) pipes.splice(0, pipes.length-280);
-  if (parts.length>900) parts.splice(0, parts.length-900);
+  if (parts.length>1100) parts.splice(0, parts.length-1100);
   if (floats.length>80) floats.splice(0, floats.length-80);
 }
 
 function render(){
-  // background
   ctx.fillStyle="#07101a";
   ctx.fillRect(0,0,W,H);
 
-  // vignette
   const vg=ctx.createRadialGradient(W*.5,H*.45,Math.min(W,H)*.12, W*.5,H*.5, Math.max(W,H)*.75);
   vg.addColorStop(0,"rgba(0,0,0,0)");
   vg.addColorStop(1,"rgba(0,0,0,.44)");
   ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
 
-  // dots
   ctx.save();
   ctx.globalAlpha=.75;
   ctx.fillStyle="rgba(255,255,255,.20)";
   for (const p of bgDots){ ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); }
   ctx.restore();
 
-  // world
   const pc = pipeColor();
   for (const p of pipes) drawPipe(p, pc);
   for (const o of orbs) drawOrb(o);
+
   for (const p of parts) p.draw();
   for (const t of floats) t.draw();
+
   drawPlayer();
 
-  // UI
   if (state===STATE.PLAY){
     drawHUD();
     drawPerfectFlash();
-  } else if (state===STATE.MENU){
-    ctx.save();
-    ctx.font="700 14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif";
-    ctx.fillStyle="rgba(255,255,255,.28)";
-    ctx.textAlign="center"; ctx.textBaseline="bottom";
-    ctx.fillText("WASD move • 1–4 skills • Orbs (combo) • Perfect gap center = bonus", W*.5, H-18);
-    ctx.restore();
   }
 }
 
 /* ---------------- Boot + loop ---------------- */
-function updateHSUI(){ menuHS.textContent = String(readHighScore()|0); }
-startBtn.disabled = true;
-setBootUI();
-
 function init(){
   resize();
+  // initial menu render uses server
   toMenu();
-  updateHSUI();
+  setUserHint();
+  fillTrailSelect();
+  setBootUI();
 }
 init();
+
+startBtn.disabled = true;
+setBootUI();
 
 let last=0;
 function frame(ts){
