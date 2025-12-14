@@ -94,7 +94,10 @@ function genRandomSeed() {
   crypto.getRandomValues(u);
   return `${u[0].toString(16)}-${u[1].toString(16)}`;
 }
-
+function setUIMode(isUI) {
+  // When UI is shown, let clicks go to HTML controls
+  canvas.style.pointerEvents = isUI ? "none" : "auto";
+}
 // ---- Boot + runtime state ----
 const boot = { imgReady: false, imgOk: false, cfgReady: false, cfgOk: false, cfgSrc: "defaults" };
 
@@ -582,6 +585,7 @@ window.addEventListener("keydown", (e) => {
 
 // ---- State transitions ----
 function toMenu() {
+  setUIMode(true);
   if (rebindCleanup) rebindCleanup();
   rebindCleanup = null;
   rebindActive = null;
@@ -594,6 +598,7 @@ function toMenu() {
 }
 
 function startGame() {
+  setUIMode(false);
   if (rebindCleanup) rebindCleanup();
   rebindCleanup = null;
   rebindActive = null;
@@ -632,6 +637,7 @@ function startGame() {
 }
 
 async function onGameOver(finalScore) {
+  setUIMode(true);
   finalEl.textContent = String(finalScore | 0);
 
   const localBest = readLocalBest();
