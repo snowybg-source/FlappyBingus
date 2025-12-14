@@ -11,8 +11,8 @@
   },
   "pipes": {
     "difficulty": {
-      "timeToMax": 38,
-      "scoreToMax": 120,
+      "timeToMax": 600,
+      "scoreToMax": 1000,
       "mixTime": 0.55,
       "mixScore": 0.45
     },

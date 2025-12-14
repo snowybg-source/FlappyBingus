@@ -2,12 +2,18 @@
   "name": "flappy-bingus",
   "version": "1.0.0",
   "private": true,
-  "description": "Flappy Bingus (Node + HTML5 Canvas) on Azure App Service",
-  "main": "server.js",
+  "type": "module",
+  "main": "server.cjs",
   "engines": {
     "node": ">=24"
   },
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.cjs"
+  },
+  "dependencies": {
+    "@ffmpeg/core": "^0.12.10",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
+    "ffmpeg": "^0.0.4"
   }
 }
