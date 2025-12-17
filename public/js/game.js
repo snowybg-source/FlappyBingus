@@ -8,6 +8,9 @@ import {
 } from "./util.js";
 import { ACTIONS, humanizeBind } from "./keybinds.js";
 
+// NEW: orb pickup SFX (pitch shifts by combo)
+import { sfxOrbBoop } from "./audio.js";
+
 const STATE = Object.freeze({ MENU: 0, PLAY: 1, OVER: 2 });
 
 class Pipe {
@@ -200,6 +203,21 @@ export class Game {
     // trail emission
     this.trailAcc = 0;
     this.trailHue = 0;
+
+    // NEW: allow main.js to disable SFX during replay/export if desired
+    this.audioEnabled = true;
+  }
+
+  // NEW: toggle game SFX without touching music
+  setAudioEnabled(on) {
+    this.audioEnabled = !!on;
+  }
+
+  // NEW: orb pickup sound, pitched by combo
+  _orbPickupSfx() {
+    if (!this.audioEnabled) return;
+    // combo already incremented by the time we call this
+    sfxOrbBoop(this.combo | 0);
   }
 
   resizeToWindow() {
@@ -293,19 +311,19 @@ export class Game {
     p.r = Math.min(p.w, p.h) * this.cfg.player.radiusScale;
   }
 
-_initBackground() {
-  this.bgDots.length = 0;
-  const n = Math.floor(clamp((this.W * this.H) / 11000, 80, 220));
-  for (let i = 0; i < n; i++) {
-    // IMPORTANT: visuals only -> do NOT use seeded rand()
-    this.bgDots.push({
-      x: Math.random() * this.W,
-      y: Math.random() * this.H,
-      r: 0.8 + Math.random() * (2.2 - 0.8),
-      s: 4 + Math.random() * (22 - 4)
-    });
+  _initBackground() {
+    this.bgDots.length = 0;
+    const n = Math.floor(clamp((this.W * this.H) / 11000, 80, 220));
+    for (let i = 0; i < n; i++) {
+      // IMPORTANT: visuals only -> do NOT use seeded rand()
+      this.bgDots.push({
+        x: Math.random() * this.W,
+        y: Math.random() * this.H,
+        r: 0.8 + Math.random() * (2.2 - 0.8),
+        s: 4 + Math.random() * (22 - 4)
+      });
+    }
   }
-}
 
   _margin() {
     return clamp(Math.min(this.W, this.H) * 0.25, 110, 240);
@@ -510,90 +528,87 @@ _initBackground() {
       this.cds.phase = Math.max(0, Number(ph.cooldown) || 0);
       this.floats.push(new FloatText("PHASE", p.x, p.y - p.r * 1.6, "rgba(160,220,255,.95)"));
     }
-if (name === "teleport") {
-  const t = this.cfg.skills.teleport;
 
-  const ed = clamp(Number(t.effectDuration) || 0.35, 0.1, 1.2);
-  const burst = Math.floor(clamp(Number(t.burstParticles) || 0, 0, 240));
+    if (name === "teleport") {
+      const t = this.cfg.skills.teleport;
 
-  const cur = (this.input && this.input.cursor) ? this.input.cursor : this.cursor;
-  if (!cur || !cur.has) return;
+      const ed = clamp(Number(t.effectDuration) || 0.35, 0.1, 1.2);
+      const burst = Math.floor(clamp(Number(t.burstParticles) || 0, 0, 240));
 
-  const pad = p.r + 2;
-  const ox = p.x, oy = p.y;
+      const cur = (this.input && this.input.cursor) ? this.input.cursor : this.cursor;
+      if (!cur || !cur.has) return;
 
-  // --- KEY FIX: map cursor -> world space ---
-  // cur.x/y are typically in canvas pixel space; p.x/y are in world space (0..this.W / 0..this.H).
-  // Convert by scaling from canvas pixels to world units.
-  const cw = this.canvas?.width || this.W;
-  const ch = this.canvas?.height || this.H;
+      const pad = p.r + 2;
+      const ox = p.x, oy = p.y;
 
-  // Protect against divide-by-zero
-  const sx = (cw > 0) ? (this.W / cw) : 1;
-  const sy = (ch > 0) ? (this.H / ch) : 1;
+      // --- KEY FIX: map cursor -> world space ---
+      const cw = this.canvas?.width || this.W;
+      const ch = this.canvas?.height || this.H;
 
-  const tx = cur.x * sx;
-  const ty = cur.y * sy;
+      const sx = (cw > 0) ? (this.W / cw) : 1;
+      const sy = (ch > 0) ? (this.H / ch) : 1;
 
-  const nx = clamp(tx, pad, this.W - pad);
-  const ny = clamp(ty, pad, this.H - pad);
-  // --- END FIX ---
+      const tx = cur.x * sx;
+      const ty = cur.y * sy;
 
-  for (let i = 0; i < burst; i++) {
-    const a0 = rand(0, Math.PI * 2), sp0 = rand(80, 420);
-    const p0 = new Part(
-      ox, oy,
-      Math.cos(a0) * sp0, Math.sin(a0) * sp0,
-      rand(0.22, 0.50), rand(1.0, 2.2),
-      "rgba(210,170,255,.92)", true
-    );
-    p0.drag = 7.5;
-    this.parts.push(p0);
+      const nx = clamp(tx, pad, this.W - pad);
+      const ny = clamp(ty, pad, this.H - pad);
+      // --- END FIX ---
 
-    const a1 = rand(0, Math.PI * 2), sp1 = rand(80, 420);
-    const p1 = new Part(
-      nx, ny,
-      Math.cos(a1) * sp1, Math.sin(a1) * sp1,
-      rand(0.22, 0.55), rand(1.0, 2.4),
-      "rgba(255,255,255,.82)", true
-    );
-    p1.drag = 7.0;
-    this.parts.push(p1);
+      for (let i = 0; i < burst; i++) {
+        const a0 = rand(0, Math.PI * 2), sp0 = rand(80, 420);
+        const p0 = new Part(
+          ox, oy,
+          Math.cos(a0) * sp0, Math.sin(a0) * sp0,
+          rand(0.22, 0.50), rand(1.0, 2.2),
+          "rgba(210,170,255,.92)", true
+        );
+        p0.drag = 7.5;
+        this.parts.push(p0);
+
+        const a1 = rand(0, Math.PI * 2), sp1 = rand(80, 420);
+        const p1 = new Part(
+          nx, ny,
+          Math.cos(a1) * sp1, Math.sin(a1) * sp1,
+          rand(0.22, 0.55), rand(1.0, 2.4),
+          "rgba(255,255,255,.82)", true
+        );
+        p1.drag = 7.0;
+        this.parts.push(p1);
+      }
+
+      p.x = nx; p.y = ny;
+      p.vx *= 0.25; p.vy *= 0.25;
+
+      this.cds.teleport = Math.max(0, Number(t.cooldown) || 0);
+      this.floats.push(new FloatText("TELEPORT", p.x, p.y - p.r * 1.7, "rgba(230,200,255,.95)"));
+
+      for (let i = 0; i < 26; i++) {
+        const a = rand(0, Math.PI * 2), sp = rand(40, 160);
+        const prt = new Part(
+          nx, ny,
+          Math.cos(a) * sp, Math.sin(a) * sp,
+          ed, rand(0.9, 1.7),
+          "rgba(255,255,255,.45)", true
+        );
+        prt.drag = 10;
+        this.parts.push(prt);
+      }
+    }
+
+    if (name === "slowField") {
+      const s = this.cfg.skills.slowField;
+
+      const dur = clamp(Number(s.duration) || 0, 0, 8.0);
+      const rad = clamp(Number(s.radius) || 0, 40, 900);
+      const fac = clamp(Number(s.slowFactor) || 0.6, 0.10, 1.0);
+
+      this.slowField = { x: p.x, y: p.y, r: rad, fac, t: dur, tm: dur };
+      this.cds.slowField = Math.max(0, Number(s.cooldown) || 0);
+      this.floats.push(new FloatText("SLOW FIELD", p.x, p.y - p.r * 1.8, "rgba(120,210,255,.95)"));
+    }
   }
 
-  p.x = nx; p.y = ny;
-  p.vx *= 0.25; p.vy *= 0.25;
-
-  this.cds.teleport = Math.max(0, Number(t.cooldown) || 0);
-  this.floats.push(new FloatText("TELEPORT", p.x, p.y - p.r * 1.7, "rgba(230,200,255,.95)"));
-
-  for (let i = 0; i < 26; i++) {
-    const a = rand(0, Math.PI * 2), sp = rand(40, 160);
-    const prt = new Part(
-      nx, ny,
-      Math.cos(a) * sp, Math.sin(a) * sp,
-      ed, rand(0.9, 1.7),
-      "rgba(255,255,255,.45)", true
-    );
-    prt.drag = 10;
-    this.parts.push(prt);
-  }
-}
-
-
-if (name === "slowField") {
-  const s = this.cfg.skills.slowField;
-
-  const dur = clamp(Number(s.duration) || 0, 0, 8.0);
-  const rad = clamp(Number(s.radius) || 0, 40, 900);
-  const fac = clamp(Number(s.slowFactor) || 0.6, 0.10, 1.0);
-
-  this.slowField = { x: p.x, y: p.y, r: rad, fac, t: dur, tm: dur };
-  this.cds.slowField = Math.max(0, Number(s.cooldown) || 0);
-  this.floats.push(new FloatText("SLOW FIELD", p.x, p.y - p.r * 1.8, "rgba(120,210,255,.95)"));
-}
-  
-}
   _updatePlayer(dt) {
     const p = this.player;
 
@@ -691,10 +706,10 @@ if (name === "slowField") {
     // background drift
     for (const p of this.bgDots) {
       p.y += p.s * dt;
-if (p.y > this.H + 10) {
-  p.y = -10;
-  p.x = Math.random() * this.W; // visuals only -> not seeded
-}
+      if (p.y > this.H + 10) {
+        p.y = -10;
+        p.x = Math.random() * this.W; // visuals only -> not seeded
+      }
     }
 
     if (this.state !== STATE.PLAY) return;
@@ -813,7 +828,7 @@ if (p.y > this.H + 10) {
         const dx = p.cx() - this.slowField.x, dy = p.cy() - this.slowField.y;
         if ((dx * dx + dy * dy) <= this.slowField.r * this.slowField.r) mul = this.slowField.fac;
       }
-p.update(dt, mul, this.W, this.H);
+      p.update(dt, mul, this.W, this.H);
     }
 
     // orbs + despawn breaks combo
@@ -835,6 +850,9 @@ p.update(dt, mul, this.W, this.H);
 
         const maxC = Math.max(1, Number(this.cfg.scoring.orbComboMax) || 30);
         this.combo = Math.min(maxC, this.combo + 1);
+
+        // NEW: play boop AFTER combo increments (so pitch rises with combo)
+        this._orbPickupSfx();
 
         const pts = this._orbPoints(this.combo);
         this.score += pts;

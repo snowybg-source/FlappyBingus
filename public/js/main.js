@@ -11,7 +11,10 @@ import {
   apiSetKeybinds
 } from "./api.js";
 
-import { escapeHtml, clamp, getCookie, setCookie, setRandSource, createSeededRand, createTapeRandRecorder, createTapeRandPlayer } from "./util.js";
+import {
+  escapeHtml, clamp, getCookie, setCookie,
+  setRandSource, createSeededRand, createTapeRandRecorder, createTapeRandPlayer
+} from "./util.js";
 
 import { Game } from "./game.js";
 
@@ -28,6 +31,9 @@ import {
 } from "./keybinds.js";
 
 import { Input } from "./input.js";
+
+// NEW: Audio (you must add public/js/audio.js from my prior message)
+import { audioInit, musicStartLoop, musicStop } from "./audio.js";
 
 // ---- DOM ----
 const canvas = document.getElementById("c");
@@ -96,10 +102,12 @@ function genRandomSeed() {
   crypto.getRandomValues(u);
   return `${u[0].toString(16)}-${u[1].toString(16)}`;
 }
+
 function setUIMode(isUI) {
   // When UI is shown, let clicks go to HTML controls
   canvas.style.pointerEvents = isUI ? "none" : "auto";
 }
+
 // ---- Boot + runtime state ----
 const boot = { imgReady: false, imgOk: false, cfgReady: false, cfgOk: false, cfgSrc: "defaults" };
 
@@ -136,7 +144,7 @@ let acc = 0;
 let lastTs = 0;
 
 // Replay / run capture
-// activeRun = { seed, ticks: [ { move, cursor, actions[] } ], pendingActions:[], ended:boolean }
+// activeRun = { seed, ticks: [ { move, cursor, actions[] } ], pendingActions:[], ended:boolean, rngTape:[] }
 let activeRun = null;
 
 // Seed of the most recently finished run (used for "Retry Previous Seed")
@@ -144,6 +152,12 @@ let lastEndedSeed = "";
 
 // When true: main RAF loop does NOT advance the sim (replay drives it)
 let replayDriving = false;
+
+// Audio assets (served from /public/audio/*)
+const AUDIO = Object.freeze({
+  musicUrl: "/audio/music.mp3",
+  boopUrl: "/audio/orb-boop.mp3"
+});
 
 // IMPORTANT: actions are NOT applied immediately.
 // They are enqueued and applied at the next simulation tick boundary.
@@ -374,6 +388,9 @@ function downloadBlob(blob, filename) {
 }
 
 async function playReplay({ captureMode = "none" } = {}) {
+  // NEW: ensure gameplay music is OFF during replay playback/capture
+  musicStop();
+
   setRandSource(createTapeRandPlayer(activeRun.rngTape));
   if (!activeRun || !activeRun.ended || !activeRun.ticks || !activeRun.ticks.length) {
     if (replayStatus) {
@@ -568,30 +585,60 @@ bindWrap.addEventListener("click", (e) => {
 });
 
 // ---- Menu/game over buttons ----
-startBtn.addEventListener("click", () => startGame());
-restartBtn.addEventListener("click", () => startGame());
-retrySeedBtn?.addEventListener("click", () => startGame({ mode: "retry" }));
+// NEW: ensure audio buffers are loaded + music starts ONLY when gameplay begins.
+async function ensureAudioReady() {
+  try {
+    await audioInit({ musicUrl: AUDIO.musicUrl, boopUrl: AUDIO.boopUrl });
+  } catch (e) {
+    // Non-fatal; game should still run without sound.
+    console.warn("audioInit failed:", e);
+  }
+}
+
+// Start/restart handlers (user gesture compliant)
+startBtn.addEventListener("click", async () => {
+  await ensureAudioReady();
+  await startGame({ mode: "new" });
+});
+restartBtn.addEventListener("click", async () => {
+  await ensureAudioReady();
+  await startGame({ mode: "new" });
+});
+retrySeedBtn?.addEventListener("click", async () => {
+  await ensureAudioReady();
+  await startGame({ mode: "retry" });
+});
+
 toMenuBtn.addEventListener("click", () => toMenu());
 
 window.addEventListener("keydown", (e) => {
   if (e.code === "Enter" && !startBtn.disabled && !menu.classList.contains("hidden")) {
     e.preventDefault();
-    startGame();
+    // user gesture: ok to start audio
+    (async () => {
+      await ensureAudioReady();
+      await startGame({ mode: "new" });
+    })();
   }
   if (e.code === "Escape") {
     if (!menu.classList.contains("hidden")) return;
     e.preventDefault();
     toMenu();
   }
-if (e.code === "KeyR" && !over.classList.contains("hidden")) {
-  e.preventDefault();
-  startGame({ mode: "new" }); // default: new seed
-}
-
+  if (e.code === "KeyR" && !over.classList.contains("hidden")) {
+    e.preventDefault();
+    (async () => {
+      await ensureAudioReady();
+      await startGame({ mode: "new" });
+    })();
+  }
 }, { passive: false });
 
 // ---- State transitions ----
 function toMenu() {
+  // NEW: stop music when leaving gameplay
+  musicStop();
+
   setUIMode(true);
   if (rebindCleanup) rebindCleanup();
   rebindCleanup = null;
@@ -604,7 +651,11 @@ function toMenu() {
   refreshProfileAndHighscores();
 }
 
-function startGame({ mode = "new" } = {}) {
+async function startGame({ mode = "new" } = {}) {
+  // NEW: always start music for actual gameplay; keep it off for menus
+  // (musicStartLoop is safe if audio isn't ready; it will no-op.)
+  musicStop();
+
   setUIMode(false);
   if (rebindCleanup) rebindCleanup();
   rebindCleanup = null;
@@ -648,11 +699,17 @@ function startGame({ mode = "new" } = {}) {
 
   acc = 0;
   game.startRun();
+
+  // NEW: start soundtrack ONLY once we're in-game
+  musicStartLoop();
+
   window.focus();
 }
 
-
 async function onGameOver(finalScore) {
+  // NEW: stop music on game over (gameplay frozen)
+  musicStop();
+
   setUIMode(true);
   finalEl.textContent = String(finalScore | 0);
 
@@ -697,6 +754,7 @@ async function onGameOver(finalScore) {
   }
 }
 
+// ---- FFmpeg (unchanged) ----
 let _ffmpegSingleton = null;
 
 async function loadFFmpeg() {
@@ -719,16 +777,11 @@ async function loadFFmpeg() {
     // Older API: factory
     ffmpeg = ffmpegMod.createFFmpeg({ log: false });
   } else {
-    // Print exports to console so you can see what you actually imported
     console.log("ffmpeg module exports:", Object.keys(ffmpegMod));
     throw new Error("No FFmpeg constructor or createFFmpeg() found in /vendor/ffmpeg/ffmpeg/index.js");
   }
 
-  // Load core/worker from SAME ORIGIN
-  // Newer class API: ffmpeg.load({ coreURL, wasmURL, workerURL })
-  // Older createFFmpeg API: ffmpeg.load() with corePath-style options (varies)
   if (typeof ffmpeg.load === "function") {
-    // Try modern signature first
     try {
       await ffmpeg.load({
         coreURL: "/vendor/ffmpeg/core/ffmpeg-core.js",
@@ -736,11 +789,9 @@ async function loadFFmpeg() {
         workerURL: "/vendor/ffmpeg/worker/worker.js",
       });
     } catch (e) {
-      // Fallback: some builds expect corePath only
-      // This fallback is harmless if unsupported; it will throw and we rethrow with detail.
       console.warn("Modern ffmpeg.load() signature failed; trying corePath fallback.", e);
       if (ffmpeg.setLogger) ffmpeg.setLogger(() => {});
-      await ffmpeg.load(); // if your build embeds paths or uses defaults from same-origin
+      await ffmpeg.load();
     }
   } else {
     throw new Error("ffmpeg instance has no load() method. Wrong build copied.");
@@ -756,7 +807,6 @@ async function transcodeWithFFmpeg({ webmBlob, outExt }) {
   await ffmpeg.writeFile("in.webm", await fetchFile(webmBlob));
 
   if (outExt === "mp4") {
-    // MP4 (H.264)
     await ffmpeg.exec([
       "-i", "in.webm",
       "-c:v", "libx264",
@@ -767,13 +817,13 @@ async function transcodeWithFFmpeg({ webmBlob, outExt }) {
     const data = await ffmpeg.readFile("out.mp4");
     return new Blob([data.buffer], { type: "video/mp4" });
   } else {
-    // GIF with palette for quality
     await ffmpeg.exec(["-i", "in.webm", "-vf", "fps=30,scale=640:-1:flags=lanczos,palettegen", "pal.png"]);
     await ffmpeg.exec(["-i", "in.webm", "-i", "pal.png", "-lavfi", "fps=30,scale=640:-1:flags=lanczos[x];[x][1:v]paletteuse", "out.gif"]);
     const data = await ffmpeg.readFile("out.gif");
     return new Blob([data.buffer], { type: "image/gif" });
   }
 }
+
 // ---- Main loop (fixed timestep + tick capture) ----
 function frame(ts) {
   let dt = (ts - lastTs) / 1000;
@@ -788,7 +838,6 @@ function frame(ts) {
       const snap = input.snapshot();
 
       // Drain actions enqueued since last tick and apply them now (live run)
-      // This matches exactly what replay will do.
       let actions = [];
       if (activeRun && game.state === 1 /* PLAY */) {
         actions = activeRun.pendingActions.splice(0);
@@ -858,41 +907,41 @@ function frame(ts) {
     });
   }
 
+  exportMp4Btn?.addEventListener("click", async () => {
+    try {
+      replayStatus.textContent = "Exporting MP4… (replaying + encoding)";
+      const webm = await playReplay({ captureMode: "webm" });
+      if (!webm) throw new Error("No WebM captured from replay.");
 
-exportMp4Btn?.addEventListener("click", async () => {
-  try {
-    replayStatus.textContent = "Exporting MP4… (replaying + encoding)";
-    const webm = await playReplay({ captureMode: "webm" });
-    if (!webm) throw new Error("No WebM captured from replay.");
+      const mp4 = await transcodeWithFFmpeg({ webmBlob: webm, outExt: "mp4" });
+      downloadBlob(mp4, `flappy-bingus-${activeRun.seed}.mp4`);
+      replayStatus.textContent = "MP4 exported.";
+    } catch (e) {
+      console.error(e);
+      replayStatus.textContent = "MP4 export failed (see console).";
+    }
+  });
 
-    const mp4 = await transcodeWithFFmpeg({ webmBlob: webm, outExt: "mp4" });
-    downloadBlob(mp4, `flappy-bingus-${activeRun.seed}.mp4`);
-    replayStatus.textContent = "MP4 exported.";
-  } catch (e) {
-    console.error(e);
-    replayStatus.textContent = "MP4 export failed (see console).";
-  }
-});
+  exportGifBtn?.addEventListener("click", async () => {
+    try {
+      replayStatus.textContent = "Exporting GIF… (replaying + encoding)";
+      const webm = await playReplay({ captureMode: "webm" });
+      if (!webm) throw new Error("No WebM captured from replay.");
 
-exportGifBtn?.addEventListener("click", async () => {
-  try {
-    replayStatus.textContent = "Exporting GIF… (replaying + encoding)";
-    const webm = await playReplay({ captureMode: "webm" });
-    if (!webm) throw new Error("No WebM captured from replay.");
-
-    const gif = await transcodeWithFFmpeg({ webmBlob: webm, outExt: "gif" });
-    downloadBlob(gif, `flappy-bingus-${activeRun.seed}.gif`);
-    replayStatus.textContent = "GIF exported.";
-  } catch (e) {
-    console.error(e);
-    replayStatus.textContent = "GIF export failed (see console).";
-  }
-});
-
-
+      const gif = await transcodeWithFFmpeg({ webmBlob: webm, outExt: "gif" });
+      downloadBlob(gif, `flappy-bingus-${activeRun.seed}.gif`);
+      replayStatus.textContent = "GIF exported.";
+    } catch (e) {
+      console.error(e);
+      replayStatus.textContent = "GIF export failed (see console).";
+    }
+  });
 
   if (watchReplayBtn) {
     watchReplayBtn.addEventListener("click", async () => {
+      // Ensure music is off during replay
+      musicStop();
+
       if (replayStatus) {
         replayStatus.className = "hint";
         replayStatus.textContent = "Playing replay…";
@@ -906,7 +955,6 @@ exportGifBtn?.addEventListener("click", async () => {
   }
 
   // Export buttons remain wired, but you still need the corrected FFmpeg loader.
-  // Keep them disabled if you haven't fixed FFmpeg yet.
   if (exportGifBtn) exportGifBtn.disabled = true;
   if (exportMp4Btn) exportMp4Btn.disabled = true;
 
