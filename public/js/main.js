@@ -18,6 +18,9 @@ import {
 
 import { Game } from "./game.js";
 
+// Tutorial
+import { Tutorial } from "./tutorial.js";
+
 import {
   ACTIONS,
   DEFAULT_KEYBINDS,
@@ -42,6 +45,7 @@ const menu = document.getElementById("menu");
 const over = document.getElementById("over");
 
 const startBtn = document.getElementById("start");
+const tutorialBtn = document.getElementById("tutorial");
 const restartBtn = document.getElementById("restart");
 const retrySeedBtn = document.getElementById("retrySeed");
 
@@ -116,8 +120,8 @@ const net = {
   user: null,
   trails: [
     { id: "classic", name: "Classic", minScore: 0 },
-    { id: "rainbow", name: "Rainbow", minScore: 100 },
-    { id: "gothic", name: "Gothic", minScore: 150 }
+    { id: "rainbow", name: "Rainbow", minScore: 200 },
+    { id: "gothic", name: "Gothic", minScore: 400 }
   ],
   highscores: []
 };
@@ -147,6 +151,10 @@ let lastTs = 0;
 // activeRun = { seed, ticks: [ { move, cursor, actions[] } ], pendingActions:[], ended:boolean, rngTape:[] }
 let activeRun = null;
 
+// Tutorial manager (initialized after Game is created, but referenced by the Input callback).
+let tutorial = null;
+
+
 // Seed of the most recently finished run (used for "Retry Previous Seed")
 let lastEndedSeed = "";
 
@@ -156,13 +164,23 @@ let replayDriving = false;
 // Audio assets (served from /public/audio/*)
 const AUDIO = Object.freeze({
   musicUrl: "/audio/music.mp3",
-  boopUrl: "/audio/orb-boop.mp3"
+  boopUrl: "/audio/orb-boop.mp3",
+  niceUrl: "/audio/nice.mp3"
 });
 
 // IMPORTANT: actions are NOT applied immediately.
 // They are enqueued and applied at the next simulation tick boundary.
 // This makes live run and replay have identical action timing.
 const input = new Input(canvas, () => binds, (actionId) => {
+  // IMPORTANT: actions are queued and applied on the next fixed tick.
+  // Tutorial runs without a replay recorder, so it keeps its own queue.
+  if (tutorial?.active && game.state === 1 /* PLAY */) {
+    tutorial.enqueueAction({
+      id: actionId,
+      cursor: { x: input.cursor.x, y: input.cursor.y, has: input.cursor.has }
+    });
+    return;
+  }
   if (activeRun && game.state === 1 /* PLAY */) {
     activeRun.pendingActions.push({
       id: actionId,
@@ -187,11 +205,20 @@ const game = new Game({
   onGameOver: (score) => onGameOver(score)
 });
 
+// Tutorial wires into the same game instance.
+tutorial = new Tutorial({
+  game,
+  input,
+  getBinds: () => binds,
+  onExit: () => toMenu()
+});
+
 window.addEventListener("resize", () => game.resizeToWindow());
 
 // ---- Boot UI ----
 function refreshBootUI() {
   startBtn.disabled = !(boot.imgReady && boot.cfgReady);
+  if (tutorialBtn) tutorialBtn.disabled = startBtn.disabled;
 
   bootPill.classList.remove("ok", "bad", "neutral");
   const ready = boot.imgReady && boot.cfgReady;
@@ -254,7 +281,7 @@ function fillTrailSelect() {
     trailHint.textContent = "Guest mode: unlocks are based on your local best cookie. Register to save progression globally.";
   } else {
     trailHint.className = "hint";
-    trailHint.textContent = `Unlock: Rainbow @ 100 • Gothic @ 150. Your best: ${best}`;
+    trailHint.textContent = `Unlock: Rainbow @ 200 • Gothic @ 400. Your best: ${best}`;
   }
 }
 
@@ -588,7 +615,8 @@ bindWrap.addEventListener("click", (e) => {
 // NEW: ensure audio buffers are loaded + music starts ONLY when gameplay begins.
 async function ensureAudioReady() {
   try {
-    await audioInit({ musicUrl: AUDIO.musicUrl, boopUrl: AUDIO.boopUrl });
+await audioInit({ musicUrl: AUDIO.musicUrl, boopUrl: AUDIO.boopUrl, niceUrl: AUDIO.niceUrl });
+
   } catch (e) {
     // Non-fatal; game should still run without sound.
     console.warn("audioInit failed:", e);
@@ -599,6 +627,12 @@ async function ensureAudioReady() {
 startBtn.addEventListener("click", async () => {
   await ensureAudioReady();
   await startGame({ mode: "new" });
+});
+
+// Tutorial
+tutorialBtn?.addEventListener("click", async () => {
+  await ensureAudioReady();
+  startTutorial();
 });
 restartBtn.addEventListener("click", async () => {
   await ensureAudioReady();
@@ -639,6 +673,9 @@ function toMenu() {
   // NEW: stop music when leaving gameplay
   musicStop();
 
+  // Ensure tutorial is fully torn down (restores cfg overrides).
+  tutorial?.stop();
+
   setUIMode(true);
   if (rebindCleanup) rebindCleanup();
   rebindCleanup = null;
@@ -649,6 +686,31 @@ function toMenu() {
 
   game.setStateMenu();
   refreshProfileAndHighscores();
+}
+
+function startTutorial() {
+  // Tutorial is gameplay-like: music on, UI hidden, no replay recording.
+  musicStop();
+
+  setUIMode(false);
+  if (rebindCleanup) rebindCleanup();
+  rebindCleanup = null;
+  rebindActive = null;
+
+  input.reset();
+  activeRun = null;
+  replayDriving = false;
+
+  // Use a stable RNG stream (even though tutorial spawns are deterministic).
+  setRandSource(createSeededRand("tutorial"));
+
+  menu.classList.add("hidden");
+  over.classList.add("hidden");
+
+  acc = 0;
+  tutorial.start();
+  musicStartLoop();
+  window.focus();
 }
 
 async function startGame({ mode = "new" } = {}) {
@@ -707,6 +769,12 @@ async function startGame({ mode = "new" } = {}) {
 }
 
 async function onGameOver(finalScore) {
+  // Tutorial auto-retries its current scenario instead of showing GAME OVER.
+  if (tutorial?.active) {
+    tutorial.handleGameOver();
+    return;
+  }
+
   // NEW: stop music on game over (gameplay frozen)
   musicStop();
 
@@ -830,6 +898,9 @@ function frame(ts) {
   lastTs = ts;
   dt = clamp(dt, 0, MAX_FRAME);
 
+  // Per-frame tutorial UI (skill intro animations, etc.)
+  if (tutorial?.active) tutorial.frame(dt);
+
   if (!replayDriving) {
     acc += dt;
 
@@ -839,12 +910,14 @@ function frame(ts) {
 
       // Drain actions enqueued since last tick and apply them now (live run)
       let actions = [];
-      if (activeRun && game.state === 1 /* PLAY */) {
+      if (tutorial?.active && game.state === 1 /* PLAY */) {
+        actions = tutorial.drainActions();
+      } else if (activeRun && game.state === 1 /* PLAY */) {
         actions = activeRun.pendingActions.splice(0);
       }
 
       // Record tick data
-      if (activeRun && game.state === 1 /* PLAY */) {
+      if (!tutorial?.active && activeRun && game.state === 1 /* PLAY */) {
         activeRun.ticks.push({
           move: snap.move,
           cursor: snap.cursor,
@@ -852,8 +925,9 @@ function frame(ts) {
         });
       }
 
-      // Apply actions for this tick to the live game
-      if (game.state === 1 /* PLAY */ && actions.length) {
+      // Apply actions for this tick to the live game (tutorial or normal run)
+      const canAdvanceSim = !(tutorial?.active && tutorial.pauseSim);
+      if (game.state === 1 /* PLAY */ && actions.length && canAdvanceSim) {
         for (const a of actions) {
           // For teleport: ensure the input cursor reflects the recorded cursor for that action
           if (a && a.cursor) {
@@ -861,12 +935,25 @@ function frame(ts) {
             input.cursor.y = a.cursor.y;
             input.cursor.has = !!a.cursor.has;
           }
+
+          if (tutorial?.active) {
+            if (!tutorial.allowAction(a.id)) {
+              tutorial.notifyBlockedAction(a.id);
+              continue;
+            }
+          }
+
           game.handleAction(a.id);
+          tutorial?.onActionApplied(a.id);
         }
       }
 
       // Step simulation
-      game.update(SIM_DT);
+      if (tutorial?.active) tutorial.beforeSimTick(SIM_DT);
+      if (!(tutorial?.active && tutorial.pauseSim)) {
+        game.update(SIM_DT);
+        if (tutorial?.active) tutorial.afterSimTick(SIM_DT);
+      }
       acc -= SIM_DT;
 
       if (game.state === 2 /* OVER */) {
@@ -876,6 +963,7 @@ function frame(ts) {
     }
 
     game.render();
+    if (tutorial?.active) tutorial.renderOverlay(ctx);
   }
 
   requestAnimationFrame(frame);

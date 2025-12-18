@@ -9,7 +9,8 @@ import {
 import { ACTIONS, humanizeBind } from "./keybinds.js";
 
 // NEW: orb pickup SFX (pitch shifts by combo)
-import { sfxOrbBoop } from "./audio.js";
+import { sfxOrbBoop, sfxPerfectNice } from "./audio.js";
+
 
 const STATE = Object.freeze({ MENU: 0, PLAY: 1, OVER: 2 });
 
@@ -219,6 +220,11 @@ export class Game {
     // combo already incremented by the time we call this
     sfxOrbBoop(this.combo | 0);
   }
+    _perfectNiceSfx() {
+    if (!this.audioEnabled) return;
+    sfxPerfectNice();
+  }
+
 
   resizeToWindow() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -803,8 +809,9 @@ export class Game {
           g.cleared = true;
           const perp = (g.axis === "x") ? this.player.y : this.player.x;
           const dist = Math.abs(perp - g.gapCenter);
-          const thresh = Math.max(3, g.gapHalf * wS);
-          if (dist <= thresh) {
+          const thresh = Math.max(3, g.gapHalf * wS) * 1.10; // NEW: 5% leniency
+if (dist <= thresh) {
+  this._perfectNiceSfx();
             this.score += bonus;
             const fd = clamp(Number(this.cfg.scoring.perfect.flashDuration) || 0.55, 0.15, 2.0);
             this.perfectT = fd; this.perfectMax = fd;
@@ -997,31 +1004,66 @@ export class Game {
     ctx.restore();
   }
 
-  _drawOrb(o) {
-    const ctx = this.ctx;
-    const t = clamp(o.life / o.max, 0, 1);
-    const pulse = 0.88 + 0.12 * Math.sin(o.ph);
-    const r = o.r * pulse;
+_drawOrb(o) {
+  const ctx = this.ctx;
 
-    ctx.save();
-    ctx.shadowColor = "rgba(255,255,255,.38)";
-    ctx.shadowBlur = 18;
+  // t: 1 = just spawned, 0 = expiring
+  const t = clamp(o.life / o.max, 0, 1);
 
-    ctx.fillStyle = "rgba(255,255,255,.88)";
-    ctx.beginPath(); ctx.arc(o.x, o.y, r, 0, Math.PI * 2); ctx.fill();
+  // p: 0 = just spawned, 1 = expiring
+  const p = 1 - t;
 
-    ctx.shadowBlur = 0;
-    ctx.globalAlpha = 0.72;
-    ctx.fillStyle = "rgba(120,210,255,.75)";
-    ctx.beginPath(); ctx.arc(o.x, o.y, r * 0.55, 0, Math.PI * 2); ctx.fill();
+  // Optional curve for a more "extreme" ramp (hits yellow sooner, then red harder)
+  const pr = Math.pow(p, 0.75);
 
-    ctx.globalAlpha = 0.38 * t;
-    ctx.strokeStyle = "rgba(255,255,255,.75)";
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(o.x, o.y, r * 1.35, 0, Math.PI * 2); ctx.stroke();
+  const pulse = 0.88 + 0.12 * Math.sin(o.ph);
+  const r = o.r * pulse;
 
-    ctx.restore();
+  // Green -> Yellow -> Red (piecewise lerp)
+  const cGreen = hexToRgb("#57FF6A");
+  const cYellow = hexToRgb("#FFE45C");
+  const cRed = hexToRgb("#FF4B4B");
+
+  let core;
+  if (pr < 0.5) {
+    core = lerpC(cGreen, cYellow, pr / 0.5);
+  } else {
+    core = lerpC(cYellow, cRed, (pr - 0.5) / 0.5);
   }
+
+  ctx.save();
+
+  // Glow matches the core color
+  ctx.shadowColor = `rgba(${core.r|0},${core.g|0},${core.b|0},.50)`;
+  ctx.shadowBlur = 18;
+
+  // Outer shell
+  ctx.fillStyle = "rgba(255,255,255,.88)";
+  ctx.beginPath();
+  ctx.arc(o.x, o.y, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Inner core (traffic-light color)
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 0.78;
+  ctx.fillStyle = rgb(core, 0.85);
+  ctx.beginPath();
+  ctx.arc(o.x, o.y, r * 0.55, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Outer ring fades as life runs out
+  ctx.globalAlpha = 0.38 * t;
+  ctx.strokeStyle = "rgba(255,255,255,.75)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(o.x, o.y, r * 1.35, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+
+
 
   _drawPlayer() {
     const ctx = this.ctx;

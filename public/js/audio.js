@@ -5,6 +5,7 @@ let ctx = null;
 
 let musicBuffer = null;
 let boopBuffer = null;
+let niceBuffer = null;
 
 let musicGain = null;
 let sfxGain = null;
@@ -38,13 +39,14 @@ async function loadBuffer(url) {
   return await c.decodeAudioData(arr);
 }
 
-export async function audioInit({ musicUrl, boopUrl } = {}) {
+export async function audioInit({ musicUrl, boopUrl, niceUrl } = {}) {
   // Must be called from a user gesture (Start / Restart click)
   await getCtx();
 
   // Load lazily once
   if (musicUrl && !musicBuffer) musicBuffer = await loadBuffer(musicUrl);
   if (boopUrl && !boopBuffer) boopBuffer = await loadBuffer(boopUrl);
+    if (niceUrl && !niceBuffer) niceBuffer = await loadBuffer(niceUrl); // NEW
 }
 
 export function setMusicVolume(v01) {
@@ -95,7 +97,6 @@ export function sfxOrbBoop(combo = 0) {
   const c = Math.max(0, combo | 0);
   src.playbackRate.value = Math.min(2.0, 1.0 + c * 0.04);
 
-  // Simple gain (no early fade that can mute the sample)
   const g = ctx.createGain();
   g.gain.value = 1.0;
 
@@ -105,3 +106,17 @@ export function sfxOrbBoop(combo = 0) {
   src.start(0);
 }
 
+export function sfxPerfectNice() {
+  if (!ctx || !niceBuffer || !sfxGain) return;
+
+  const src = ctx.createBufferSource();
+  src.buffer = niceBuffer;
+
+  const g = ctx.createGain();
+  g.gain.value = 1.0;
+
+  src.connect(g);
+  g.connect(sfxGain);
+
+  src.start(0);
+}
